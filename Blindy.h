@@ -39,7 +39,8 @@ protected:
   void calculate_increment_values_for_variable_fade(unsigned char start, unsigned char target, unsigned char speed);
   void calculate_increment_values_for_fixed_fade(unsigned char start, unsigned char target, unsigned char speed);
   bool is_at_end_after_increment();
-  
+  int random_vary(int value, int amount);
+
   const int _min_increment_duration = 20;
   const int _do_nothing_duration = 5000;
   
@@ -49,6 +50,8 @@ protected:
   int _increment_amount;
   int _increment_duration;
   int _target;
+  
+  static const int random_variance = 40;
 
 private:
   static int _mic_pin;
@@ -122,6 +125,12 @@ public:
   BlindyBlinkRandom(unsigned char brightness, unsigned char speed, unsigned char duty);
   unsigned char new_brightness();
   Blindy *next_command(char * args);
+private:
+  bool _on;
+  bool _first;
+  unsigned int _speed;
+  unsigned int _duty;
+  unsigned int _off_time;
 };
 
 class BlindyPulseRandom: public Blindy {
@@ -130,6 +139,10 @@ public:
   BlindyPulseRandom(unsigned char cur_level, unsigned char brightness, unsigned char speed, unsigned char range);
   unsigned char new_brightness();
   Blindy *next_command(char * args);
+private:
+  bool _going_up;
+  unsigned int _bottom;
+  unsigned int _speed;
 };
 
 class BlindySoundSensitive: public Blindy {

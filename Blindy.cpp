@@ -103,6 +103,8 @@ int Blindy::cur_level() {
 int Blindy::duration_from_speed(unsigned char speed){
   return (270 - speed) * (270 - speed) / 8;
 }
+
+
 void Blindy::calculate_increment_values_for_variable_fade(unsigned char start, unsigned char target, unsigned char speed) {
   int total_millis = duration_from_speed(speed);
   _cur_level = start;
@@ -156,6 +158,13 @@ bool Blindy::is_at_end_after_increment() {
     _cur_level = _target;
   }
   return done;
+}
+
+int Blindy::random_vary(int value, int amount){
+  int newVal = value + (rand() % amount) - (amount / 2);
+  if (newVal < 0) newVal = 0;
+  if (newVal > 255) newVal = 255;
+  return newVal;
 }
 
 BlindySet::BlindySet(unsigned char level){
@@ -260,7 +269,7 @@ BlindyPulseSteady::BlindyPulseSteady(unsigned char cur_level, unsigned char brig
   _brightness = brightness;
   _speed = speed;
   _bottom = (_brightness * (255 - range)) / 255;
-  calculate_increment_values_for_fixed_fade(cur_level, _brightness, _speed);
+  calculate_increment_values_for_variable_fade(cur_level, _brightness, _speed);
   _going_up = true;
   _next_action = millis();
 //  Serial.print("Go between ");  Serial.print(_brightness);  Serial.print(" and ");  Serial.println(_bottom);
@@ -289,25 +298,72 @@ Blindy *BlindyPulseSteady::next_command(char * args){
 }
 
 BlindyBlinkRandom::BlindyBlinkRandom(unsigned char brightness, unsigned char speed, unsigned char duty) {
-  
+  _brightness = brightness;
+  _speed = speed;
+  _duty = duty;
+  _first = true;
+  _on = false;
+  _cur_level = 0;
+  _next_action = millis();
 }
 
 unsigned char BlindyBlinkRandom::new_brightness() {
+  if (_first){
+    _cur_level = 0;
+    _first = false;
+    _next_action = rand() % duration_from_speed(_speed);
+  }else if (!_on) {
+    unsigned int duration = duration_from_speed(random_vary(_speed, random_variance));
+    unsigned int on_time = (duration * _duty) / 255;
+    _off_time = duration - on_time;
+    _cur_level = _brightness;
+    _next_action = _next_action + on_time;
+  } else {
+    _cur_level = 0;
+    _next_action = _next_action + _off_time;
+  }
+  _on = !_on;
   return (unsigned char) _cur_level;
 }
 Blindy *BlindyBlinkRandom::next_command(char * args){
-  return NULL;
+  if (args[0] == BlindyBlinkRandom::code){
+    _brightness = (unsigned char)args[1];
+    _speed = (unsigned char)args[2];
+    _duty = (unsigned char)args[3];
+    return this;
+  } else
+    return NULL;
 }
 
 BlindyPulseRandom::BlindyPulseRandom(unsigned char cur_level, unsigned char brightness, unsigned char speed, unsigned char range) {
-  
+  _brightness = brightness;
+  _speed = speed;
+  _bottom = (_brightness * (255 - range)) / 255;
+  calculate_increment_values_for_variable_fade(cur_level, _brightness, random_vary(_speed, random_variance));
+  _going_up = true;
+  _next_action = millis();
 }
 
 unsigned char BlindyPulseRandom::new_brightness() {
+  if (is_at_end_after_increment()) {
+    if (_going_up) {
+      // I just went up, now I go down
+      calculate_increment_values_for_variable_fade(_cur_level, _bottom, random_vary(_speed, random_variance));
+    } else {
+      calculate_increment_values_for_variable_fade(_cur_level, _brightness, random_vary(_speed, random_variance));
+    }
+    _going_up = !_going_up;
+  }
   return (unsigned char) _cur_level;
 }
 Blindy *BlindyPulseRandom::next_command(char * args){
-  return NULL;
+  if (args[0] == BlindyPulseRandom::code) {
+    _brightness = (unsigned char)args[1];
+    _speed = (unsigned char)args[2];
+    _bottom = (_brightness * (255 - (unsigned char)args[3])) / 255;
+    return this;
+  } else
+    return NULL;
 }
 
 BlindySoundSensitive::BlindySoundSensitive(unsigned char brightness, unsigned char decay, int analog_pin) {

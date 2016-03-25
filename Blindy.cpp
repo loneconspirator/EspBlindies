@@ -229,14 +229,9 @@ BlindyBlinkSteady::BlindyBlinkSteady(unsigned char brightness, unsigned char spe
   _duration = duration_from_speed(speed);
   _on_time = (_duration * duty) / 255;
   _off_time = _duration - _on_time;
-  // if (previous.code == this.code) {
   _on = false;
   _cur_level = 0;
   _next_action = millis();
-  // }else{
-  //  _cur_level = previous->cur_level();
-  //  _next_action = previous->next_action();
-  // }
 }
 
 unsigned char BlindyBlinkSteady::new_brightness() {
@@ -251,13 +246,20 @@ unsigned char BlindyBlinkSteady::new_brightness() {
   return (unsigned char) _cur_level;
 }
 Blindy *BlindyBlinkSteady::next_command(char * args){
-  return NULL;
+  if (args[0] == BlindyBlinkSteady::code){
+    _brightness = (unsigned char)args[1];
+    _duration = duration_from_speed((unsigned char)args[2]);
+    _on_time = (_duration * (unsigned char)args[3]) / 255;
+    _off_time = _duration - _on_time;
+    return this;
+  } else
+    return NULL;
 }
 
 BlindyPulseSteady::BlindyPulseSteady(unsigned char cur_level, unsigned char brightness, unsigned char speed, unsigned char range) {
   _brightness = brightness;
   _speed = speed;
-  _bottom = _brightness * (range - 255) / 255;
+  _bottom = (_brightness * (255 - range)) / 255;
   calculate_increment_values_for_fixed_fade(cur_level, _brightness, _speed);
   _going_up = true;
   _next_action = millis();
@@ -268,18 +270,22 @@ unsigned char BlindyPulseSteady::new_brightness() {
   if (is_at_end_after_increment()) {
     if (_going_up) {
       // I just went up, now I go down
-//      Serial.print("Go from ");  Serial.print(_brightness);  Serial.print(" to ");  Serial.println(_bottom);
-      calculate_increment_values_for_variable_fade(_brightness, _bottom, _speed);
+      calculate_increment_values_for_variable_fade(_cur_level, _bottom, _speed);
     } else {
-//      Serial.print("Go from ");  Serial.print(_bottom);  Serial.print(" to ");  Serial.println(_brightness);
-      calculate_increment_values_for_variable_fade(_bottom, _brightness, _speed);
+      calculate_increment_values_for_variable_fade(_cur_level, _brightness, _speed);
     }
     _going_up = !_going_up;
   }
   return (unsigned char) _cur_level;
 }
 Blindy *BlindyPulseSteady::next_command(char * args){
-  return NULL;
+  if (args[0] == BlindyPulseSteady::code) {
+    _brightness = (unsigned char)args[1];
+    _speed = (unsigned char)args[2];
+    _bottom = (_brightness * (255 - (unsigned char)args[3])) / 255;
+    return this;
+  } else
+    return NULL;
 }
 
 BlindyBlinkRandom::BlindyBlinkRandom(unsigned char brightness, unsigned char speed, unsigned char duty) {

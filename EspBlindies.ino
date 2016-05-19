@@ -92,7 +92,10 @@ void setup() {
     Blindy::seed_random(seed);
   }
 
-  packetBuffer[0] = '0'; packetBuffer[1] = '\0'; 
+  Blindy::set_mic_pin(A0);
+
+//  packetBuffer[0] = '8'; packetBuffer[1] = 255;  packetBuffer[2] = '\0'; 
+  packetBuffer[0] = '0'; packetBuffer[1] = '\0';
   curBlindy = Blindy::new_command(packetBuffer, NULL);
 
   setLedLevel(curBlindy->new_brightness());
@@ -118,9 +121,14 @@ void loop() {
       curBlindy = Blindy::new_command(packetBuffer, curBlindy);
       // If it's a roll call, I've got to handle it
       if (packetBuffer[0] = Blindy::roll_call_code) {
+        char *id = new char[35];
+        strcpy(id, wifi.mac_id());
+        strcat(id, "-");
+        strcat(id, Blindy::version);
         udp.beginPacket(udp.remoteIP(), udp.remotePort());
         udp.write(wifi.mac_id(), 19);
         udp.endPacket();
+        delete id;
       }
     }
   }
@@ -129,7 +137,7 @@ void loop() {
 //  lastMillis = curMillis;
   if (curBlindy->is_time_to_act()) {
     unsigned char newLevel = curBlindy->new_brightness();
-    Serial.print("Setting level to: "); Serial.println(newLevel);
+//    Serial.print("Setting level to: "); Serial.println(newLevel);
     setLedLevel(newLevel);
   }
   delayMicroseconds(450);

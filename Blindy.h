@@ -16,6 +16,7 @@ public:
   static const char solo_on_code = '(';
   static const char solo_off_code = ')';
   static const char roll_call_code = '.';
+  static constexpr char *version = "0.8.0";
   
   static void seed_random(int seed);
   // new_command is what the driver calls when a new command has come in - this function processes that command
@@ -40,6 +41,7 @@ protected:
   void calculate_increment_values_for_fixed_fade(unsigned char start, unsigned char target, unsigned char speed);
   bool is_at_end_after_increment();
   int random_vary(int value, int amount);
+  int on_duty(unsigned int duration, unsigned char duty);
 
   const int _min_increment_duration = 20;
   const int _do_nothing_duration = 5000;

@@ -160,6 +160,28 @@ bool Blindy::is_at_end_after_increment() {
   return done;
 }
 
+int Blindy::on_duty(unsigned int duration, unsigned char duty) {
+  // I want the 25 values at the beginning of the duty range to be a fixed amount (2x), and a line from there to full duty
+  int on_time;
+  const float fixed_margin = 20.0;
+  const float margin_slope = 3.0;
+  if (duty < fixed_margin) {
+      on_time = duty * margin_slope;
+      if (on_time >= duration)
+        on_time = duration - 1;
+      // Serial.print("left");
+  } else {
+    // This should make a line between the two margin ends
+    on_time = ((duration-(fixed_margin * margin_slope))/(255.0-fixed_margin))*(duty-fixed_margin)+(fixed_margin * margin_slope)+0.5;
+    // double slope = (duration - 50.0) / 230.0;
+    // on_time = (slope * duty) - (duration * 5.0 / 46.0) + (1275.0 / 23.0) + 0.5;
+    if (duration < (fixed_margin * margin_slope)) on_time = duration - 1;
+    // Serial.print("slope: "); Serial.print(slope);
+  }
+  // Serial.print(" duration: "); Serial.print(duration); Serial.print(", duty: "); Serial.print(duty); Serial.print(", on_time: "); Serial.println(on_time);
+  return on_time;
+}
+
 int Blindy::random_vary(int value, int amount){
   int newVal = value + (rand() % amount) - (amount / 2);
   if (newVal < 0) newVal = 0;
@@ -236,7 +258,7 @@ Blindy *BlindyOnePulse::next_command(char * args){
 BlindyBlinkSteady::BlindyBlinkSteady(unsigned char brightness, unsigned char speed, unsigned char duty) {
   _brightness = brightness;
   _duration = duration_from_speed(speed);
-  _on_time = (_duration * duty) / 255;
+  _on_time = on_duty(_duration, duty);
   _off_time = _duration - _on_time;
   _on = false;
   _cur_level = 0;
@@ -258,8 +280,48 @@ Blindy *BlindyBlinkSteady::next_command(char * args){
   if (args[0] == BlindyBlinkSteady::code){
     _brightness = (unsigned char)args[1];
     _duration = duration_from_speed((unsigned char)args[2]);
-    _on_time = (_duration * (unsigned char)args[3]) / 255;
+    _on_time = on_duty(_duration, (unsigned char)args[3]);
     _off_time = _duration - _on_time;
+    return this;
+  } else
+    return NULL;
+}
+
+BlindyBlinkRandom::BlindyBlinkRandom(unsigned char brightness, unsigned char speed, unsigned char duty) {
+  _brightness = brightness;
+  _speed = speed;
+  _duty = duty;
+  _first = true;
+  _on = false;
+  _cur_level = 0;
+  _next_action = millis();
+}
+
+unsigned char BlindyBlinkRandom::new_brightness() {
+  if (_first){
+    _cur_level = 0;
+    _first = false;
+    _on = false;
+    _next_action = rand() % duration_from_speed(_speed);
+  }else if (!_on) {
+    unsigned int duration = duration_from_speed(random_vary(_speed, random_variance));
+    unsigned int on_time = on_duty(duration, _duty);
+    _off_time = duration - on_time;
+    _cur_level = _brightness;
+    _next_action = _next_action + on_time;
+    _on = true;
+  } else {
+    _cur_level = 0;
+    _next_action = _next_action + _off_time;
+    _on = false;
+  }
+  return (unsigned char) _cur_level;
+}
+Blindy *BlindyBlinkRandom::next_command(char * args){
+  if (args[0] == BlindyBlinkRandom::code){
+    _brightness = (unsigned char)args[1];
+    _speed = (unsigned char)args[2];
+    _duty = (unsigned char)args[3];
     return this;
   } else
     return NULL;
@@ -292,44 +354,6 @@ Blindy *BlindyPulseSteady::next_command(char * args){
     _brightness = (unsigned char)args[1];
     _speed = (unsigned char)args[2];
     _bottom = (_brightness * (255 - (unsigned char)args[3])) / 255;
-    return this;
-  } else
-    return NULL;
-}
-
-BlindyBlinkRandom::BlindyBlinkRandom(unsigned char brightness, unsigned char speed, unsigned char duty) {
-  _brightness = brightness;
-  _speed = speed;
-  _duty = duty;
-  _first = true;
-  _on = false;
-  _cur_level = 0;
-  _next_action = millis();
-}
-
-unsigned char BlindyBlinkRandom::new_brightness() {
-  if (_first){
-    _cur_level = 0;
-    _first = false;
-    _next_action = rand() % duration_from_speed(_speed);
-  }else if (!_on) {
-    unsigned int duration = duration_from_speed(random_vary(_speed, random_variance));
-    unsigned int on_time = (duration * _duty) / 255;
-    _off_time = duration - on_time;
-    _cur_level = _brightness;
-    _next_action = _next_action + on_time;
-  } else {
-    _cur_level = 0;
-    _next_action = _next_action + _off_time;
-  }
-  _on = !_on;
-  return (unsigned char) _cur_level;
-}
-Blindy *BlindyBlinkRandom::next_command(char * args){
-  if (args[0] == BlindyBlinkRandom::code){
-    _brightness = (unsigned char)args[1];
-    _speed = (unsigned char)args[2];
-    _duty = (unsigned char)args[3];
     return this;
   } else
     return NULL;
@@ -377,7 +401,7 @@ BlindySoundSensitive::BlindySoundSensitive(unsigned char brightness, unsigned ch
 unsigned char BlindySoundSensitive::new_brightness() {
   int val = analogRead(_analog_pin);
   bool hit = (val < low_threshold || val > high_threshold);
-//  Serial.print("Sound mode got value: "); Serial.print(val); if (hit) Serial.print(" HIT"); Serial.println();
+  Serial.print("Sound mode got value: "); Serial.print(val); if (hit) Serial.print(" HIT"); Serial.println();
   _next_action = millis();
   return (unsigned char) (hit ? _brightness : 0);
 }

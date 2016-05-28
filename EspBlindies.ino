@@ -6,14 +6,14 @@
  */
 
 #include "Blindy.h"
+#include "BlindyRGB.h"
 #include <WifiCreds.h>
 #include "WifiDefaults.h"
+
 //#include "espconn.h" // I think this is supposed to help me discover if the packet I get was broadcast or straight to me
 
 #include <ESP8266WiFi.h>
 #include <WiFiUDP.h>
-
-#include <EEPROM.h>
 
 WifiCreds wifi(DEFAULT_SSID, DEFAULT_PASSWORD);
 
@@ -30,6 +30,9 @@ WiFiUDP udp;
 #define LEDIND_PIN 2
 // onboard red pin, also backwards
 #define IND_PIN 0
+// Output pin for the addressible LEDs
+#define RGB_PIN 14
+#define NUM_RGBS 60
 
 #define BUTTON_PIN 4
 
@@ -38,7 +41,10 @@ WiFiUDP udp;
 
 #define RANDOM_RANGE 40
 
-Blindy *curBlindy;
+bool first_pass = true;
+
+Blindy *curBlindy = NULL;
+BlindyRGB *curRgb = NULL;
 
 void setupLedPins() {
   pinMode(LED_PIN, OUTPUT);
@@ -66,6 +72,7 @@ void button() {
     wifi.disable_wifi();
 }
 
+
 // the setup function runs once when you press reset or power the board
 void setup() {
   // initialize pins
@@ -76,6 +83,8 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), button, FALLING);
+
+  pinMode(RGB_PIN, OUTPUT);
 
   for (int i=0; i<256; i++)
     delay_map[i] = (unsigned int) (255-i)*40;
@@ -92,13 +101,19 @@ void setup() {
     Blindy::seed_random(seed);
   }
 
-  Blindy::set_mic_pin(A0);
+//  Blindy::set_mic_pin(A0);
+  BlindyRGB::initRGB(NUM_RGBS, RGB_PIN);
 
 //  packetBuffer[0] = '8'; packetBuffer[1] = 255;  packetBuffer[2] = '\0'; 
   packetBuffer[0] = '0'; packetBuffer[1] = '\0';
   curBlindy = Blindy::new_command(packetBuffer, NULL);
+  //packetBuffer[0] = 'A'; packetBuffer[1] = '\0';
+  strcpy(packetBuffer, "D\0");
+  curRgb = BlindyRGB::new_command(packetBuffer, NULL);
 
   setLedLevel(curBlindy->new_brightness());
+  curRgb->new_brightness();
+  BlindyRGB::write_rgbs();
 }
 
 unsigned long lastMillis = 0;
@@ -119,6 +134,7 @@ void loop() {
       }
       Serial.print("Just got:"); Serial.println(packetBuffer);
       curBlindy = Blindy::new_command(packetBuffer, curBlindy);
+      curRgb = BlindyRGB::new_command(packetBuffer, curRgb);
       // If it's a roll call, I've got to handle it
       if (packetBuffer[0] = Blindy::roll_call_code) {
         char *id = new char[35];
@@ -135,10 +151,18 @@ void loop() {
   // Do the adjustment to the light level according to the variables
 //  Serial.printf("Millis since last pass: %d\n", curMillis - lastMillis);
 //  lastMillis = curMillis;
+  if (first_pass) {
+    curRgb->reset_next_action();
+    first_pass = false;
+  }
   if (curBlindy->is_time_to_act()) {
     unsigned char newLevel = curBlindy->new_brightness();
 //    Serial.print("Setting level to: "); Serial.println(newLevel);
     setLedLevel(newLevel);
+  }
+  if (curRgb->is_time_to_act()) {
+    curRgb->new_brightness();
+    BlindyRGB::write_rgbs();
   }
   delayMicroseconds(450);
 }

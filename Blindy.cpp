@@ -8,23 +8,13 @@
 #include "Blindy.h"
 #include "Arduino.h"
 
+
 void Blindy::seed_random(int seed) {
   srand(seed);
 }
 
-int Blindy::_mic_pin = -1;
-int Blindy::_num_leds = 0;
-bool Blindy::_solo_mode = false;
-
-void Blindy::set_mic_pin(int pin) {
-  _mic_pin = pin;
-}
-
-void Blindy::addressable_config(int num_leds, int led_pin) {
-  // Do stuff here...
-}
-
 Blindy *Blindy::new_command(char * args, Blindy *previous) {
+  // if(!_initialized) initialize();
   Blindy *new_mode = NULL;
   unsigned char cur_level = 0;
   if (previous) {
@@ -43,6 +33,7 @@ Blindy *Blindy::new_command(char * args, Blindy *previous) {
 }
 
 Blindy *Blindy::new_mode_from_scratch(char * args, unsigned char cur_level) {
+  // Serial.println("Blindy::new_mode_from_scratch"); Serial.flush();
   Blindy *newMode = NULL;
   switch (args[0]) {
     case BlindySet::code:
@@ -69,27 +60,19 @@ Blindy *Blindy::new_mode_from_scratch(char * args, unsigned char cur_level) {
     case BlindyPulseRandom::code:
     newMode = new BlindyPulseRandom(cur_level, (unsigned char)args[1], (unsigned char)args[2], (unsigned char)args[3]);
     break;
-    case BlindySoundSensitive::code:
-    if (_mic_pin >= 0)
-      newMode = new BlindySoundSensitive((unsigned char)args[1], (unsigned char)args[2], _mic_pin);
-    break;
-    case solo_on_code:
-    _solo_mode = true;
-    break;
-    case solo_off_code:
-    _solo_mode = false;
-    break;
-    case roll_call_code:
-    // can I do this here?
-    break;
-    case BlindySparkle::code:
-    if (_num_leds > 0)
-      newMode = new BlindySparkle((unsigned char)args[1], (unsigned char)args[2]);
-    break;
-    case BlindyCylon::code:
-    if (_num_leds > 0)
-      newMode = new BlindyCylon((unsigned char)args[1], (unsigned char)args[2]);
-    break;
+    // case BlindySoundSensitive::code:
+    // if (_mic_pin >= 0)
+    //   newMode = new BlindySoundSensitive((unsigned char)args[1], (unsigned char)args[2], _mic_pin);
+    // break;
+    // case solo_on_code:
+    // _solo_mode = true;
+    // break;
+    // case solo_off_code:
+    // _solo_mode = false;
+    // break;
+    // case roll_call_code:
+    // // can I do this here?
+    // break;
   }
   return newMode;
 }
@@ -97,11 +80,17 @@ Blindy *Blindy::new_mode_from_scratch(char * args, unsigned char cur_level) {
 bool Blindy::is_time_to_act() {
   return (_next_action <= millis());
 }
+void Blindy::reset_next_action() {
+  _next_action = millis();
+}
 int Blindy::cur_level() {
   return _cur_level;
 }
 int Blindy::duration_from_speed(unsigned char speed){
   return (270 - speed) * (270 - speed) / 8;
+}
+Blindy *Blindy::next_command(char * args){
+  return NULL;
 }
 
 
@@ -198,9 +187,6 @@ unsigned char BlindySet::new_brightness() {
   _next_action += _do_nothing_duration;
   return (unsigned char) _cur_level;
 }
-Blindy *BlindySet::next_command(char * args) {
-  return NULL;
-}
 
 BlindyFadeVariable::BlindyFadeVariable(unsigned char cur_level, unsigned char target, unsigned char speed) {
   calculate_increment_values_for_variable_fade(cur_level, target, speed);
@@ -214,9 +200,6 @@ unsigned char BlindyFadeVariable::new_brightness() {
   }
   return (unsigned char) _cur_level;
 }
-Blindy *BlindyFadeVariable::next_command(char * args){
-  return NULL;
-}
 
 BlindyFadeFixed::BlindyFadeFixed(unsigned char cur_level, unsigned char target, unsigned char speed) {
   calculate_increment_values_for_fixed_fade(cur_level, target, speed);
@@ -228,9 +211,6 @@ unsigned char BlindyFadeFixed::new_brightness() {
     _increment_duration = _do_nothing_duration;
   }
   return (unsigned char) _cur_level;
-}
-Blindy *BlindyFadeFixed::next_command(char * args){
-  return NULL;
 }
 
 BlindyOnePulse::BlindyOnePulse(unsigned char cur_level, unsigned char brightness, unsigned char attack, unsigned char decay) {
@@ -250,9 +230,6 @@ unsigned char BlindyOnePulse::new_brightness() {
     }
   }
   return (unsigned char) _cur_level;
-}
-Blindy *BlindyOnePulse::next_command(char * args){
-  return NULL;
 }
 
 BlindyBlinkSteady::BlindyBlinkSteady(unsigned char brightness, unsigned char speed, unsigned char duty) {
@@ -390,44 +367,23 @@ Blindy *BlindyPulseRandom::next_command(char * args){
     return NULL;
 }
 
-BlindySoundSensitive::BlindySoundSensitive(unsigned char brightness, unsigned char decay, int analog_pin) {
-  _brightness = brightness;
-  _analog_pin = analog_pin;
-  _cur_level = 0;
-  _hit = false;
-  _next_action = millis();
-}
+// BlindySoundSensitive::BlindySoundSensitive(unsigned char brightness, unsigned char decay, int analog_pin) {
+//   _brightness = brightness;
+//   _analog_pin = analog_pin;
+//   _cur_level = 0;
+//   _hit = false;
+//   _next_action = millis();
+// }
 
-unsigned char BlindySoundSensitive::new_brightness() {
-  int val = analogRead(_analog_pin);
-  bool hit = (val < low_threshold || val > high_threshold);
-  Serial.print("Sound mode got value: "); Serial.print(val); if (hit) Serial.print(" HIT"); Serial.println();
-  _next_action = millis();
-  return (unsigned char) (hit ? _brightness : 0);
-}
-Blindy *BlindySoundSensitive::next_command(char * args){
-  return NULL;
-}
+// unsigned char BlindySoundSensitive::new_brightness() {
+//   int val = analogRead(_analog_pin);
+//   bool hit = (val < low_threshold || val > high_threshold);
+//   Serial.print("Sound mode got value: "); Serial.print(val); if (hit) Serial.print(" HIT"); Serial.println();
+//   _next_action = millis();
+//   return (unsigned char) (hit ? _brightness : 0);
+// }
+// Blindy *BlindySoundSensitive::next_command(char * args){
+//   return NULL;
+// }
 
-BlindySparkle::BlindySparkle(unsigned char brightness, unsigned char speed) {
-  
-}
-
-unsigned char BlindySparkle::new_brightness() {
-  return (unsigned char) _cur_level;
-}
-Blindy *BlindySparkle::next_command(char * args){
-  return NULL;
-}
-
-BlindyCylon::BlindyCylon(unsigned char brightness, unsigned char speed) {
-  
-}
-
-unsigned char BlindyCylon::new_brightness() {
-  return (unsigned char) _cur_level;
-}
-Blindy *BlindyCylon::next_command(char * args){
-  return NULL;
-}
 

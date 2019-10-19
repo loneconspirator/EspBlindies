@@ -1,8 +1,8 @@
-= EspBlindies
+# EspBlindies
 
 Blindies is the term for the stupidly bright blinky lights that [Chaotic Noise Marching Corps](https://www.chaoticnoise.com) wears when performing. This is the code for their "brains", which is programmed on ESP8266 and powers said lights. It can also drive a separate strip of addressable RGB LEDs simultaneously.
 
-== Setup
+## Setup
 I have used the [AdaFruit Huzzah](https://www.adafruit.com/product/2471) to is a fairly simple circuit driving 12v blindies through a transistor. There are excellent instructions there on getting code on the chip linked from the Huzzah page.
 
 To get the code set up, you'll need to open the patch in the Arduino editor and load the basic EEPROM library, [install the NeoPixel library](https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-installation) and download the [WifiCreds](https://github.com/loneconspirator/WifiCreds) library.

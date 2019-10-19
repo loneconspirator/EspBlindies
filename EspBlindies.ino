@@ -9,6 +9,8 @@
 #include "BlindyRGB.h"
 #include <WifiCreds.h>
 #include "WifiDefaults.h"
+#include <EEPROM.h>
+#include <stdio.h>
 
 //#include "espconn.h" // I think this is supposed to help me discover if the packet I get was broadcast or straight to me
 
@@ -72,6 +74,19 @@ void button() {
     wifi.disable_wifi();
 }
 
+char * my_name(){
+  return wifi.read_variable(130, 15, "<no_name>\0");
+}
+void my_name(char *new_name){
+  wifi.write_variable(130, 15, new_name);
+}
+int num_rgbs(){
+  return (int)wifi.read_variable(128, 1, "\0")[0];
+}
+void num_rgbs(int num){
+  char _num = (char) num;
+  wifi.write_variable(128, 1, &_num);
+}
 
 // the setup function runs once when you press reset or power the board
 void setup() {
@@ -82,14 +97,19 @@ void setup() {
   pinMode(IND_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), button, FALLING);
+  // This line below was getting my ESP into an unhappy state
+  //attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), button, FALLING);
 
   pinMode(RGB_PIN, OUTPUT);
 
   for (int i=0; i<256; i++)
     delay_map[i] = (unsigned int) (255-i)*40;
 
-  Serial.begin(115200); while(!Serial) ; // Open Serial connection and wait for it to be good
+  Serial.begin(115200); while(!Serial) delayMicroseconds(10); // Open Serial connection and wait for it to be good
+
+  delay(500);
+  Serial.println();
+  Serial.print("Starting up Blindies version: "); Serial.println(Blindy::version);
 
   wifi.connect(IND_PIN);
 
@@ -102,24 +122,27 @@ void setup() {
   }
 
 //  Blindy::set_mic_pin(A0);
-  BlindyRGB::initRGB(NUM_RGBS, RGB_PIN);
+  BlindyRGB::initRGB(num_rgbs(), RGB_PIN);
+  Serial.print("Setting up "); Serial.print(num_rgbs()); Serial.println(" RGB lights"); Serial.flush();
 
-//  packetBuffer[0] = '8'; packetBuffer[1] = 255;  packetBuffer[2] = '\0'; 
+  packetBuffer[0] = '8'; packetBuffer[1] = 255;  packetBuffer[2] = '\0'; 
   packetBuffer[0] = '0'; packetBuffer[1] = '\0';
   curBlindy = Blindy::new_command(packetBuffer, NULL);
   //packetBuffer[0] = 'A'; packetBuffer[1] = '\0';
-  strcpy(packetBuffer, "D\0");
+  strcpy(packetBuffer, "D\0\0");
   curRgb = BlindyRGB::new_command(packetBuffer, NULL);
 
+  Serial.println((int) curRgb); Serial.flush(); // This was just in there to make sure it was getting assigned
+
   setLedLevel(curBlindy->new_brightness());
-  curRgb->new_brightness();
-  BlindyRGB::write_rgbs();
+  if(curRgb) curRgb->new_brightness();
 }
 
 unsigned long lastMillis = 0;
 
 void loop() {
   unsigned long curMillis = millis();
+
   if (wifi.is_wifi_enabled()) {
     int packetSize = udp.parsePacket();
     if (packetSize) {
@@ -136,15 +159,50 @@ void loop() {
       curBlindy = Blindy::new_command(packetBuffer, curBlindy);
       curRgb = BlindyRGB::new_command(packetBuffer, curRgb);
       // If it's a roll call, I've got to handle it
-      if (packetBuffer[0] = Blindy::roll_call_code) {
-        char *id = new char[35];
-        strcpy(id, wifi.mac_id());
+      if (packetBuffer[0] == Blindy::roll_call_code) {
+        int max_pack_len = 72;
+        char *id = new char[max_pack_len];
+        char *num = new char[10];
+        itoa(WiFi.localIP()[0], num, 10);
+        strcpy(id, num);
+        strcat(id, ".");
+        itoa(WiFi.localIP()[1], num, 10);
+        strcat(id, num);
+        strcat(id, ".");
+        itoa(WiFi.localIP()[2], num, 10);
+        strcat(id, num);
+        strcat(id, ".");
+        itoa(WiFi.localIP()[3], num, 10);
+        strcat(id, num);
         strcat(id, "-");
         strcat(id, Blindy::version);
-        udp.beginPacket(udp.remoteIP(), udp.remotePort());
-        udp.write(wifi.mac_id(), 19);
+        strcat(id, "-");
+        strcat(id, my_name());
+        strcat(id, "-");
+        itoa(num_rgbs(), num, 10);
+        strcat(id, num);
+        strcat(id, "-");
+        strcat(id, wifi.mac_id());
+        udp.beginPacket(udp.remoteIP(), localPort);//udp.remotePort());
+        udp.write(id, max_pack_len);
         udp.endPacket();
+        Serial.print("Sent: ");Serial.print(id);Serial.print(" to ");Serial.print(udp.remoteIP());Serial.print(":");Serial.println(udp.remotePort());
         delete id;
+        delete num;
+      }
+      // set the number of RGBs
+      if (packetBuffer[0] == '+') {
+        num_rgbs(packetBuffer[1]);
+        udp.beginPacket(udp.remoteIP(), localPort);//udp.remotePort());
+        udp.write("Set # of RGBs - must restart unit", 34);
+        udp.endPacket();
+      }
+      // set the unit name
+      if (packetBuffer[0] == '!') {
+        my_name(packetBuffer+1);
+        udp.beginPacket(udp.remoteIP(), localPort);//udp.remotePort());
+        udp.write("Set my name", 34);
+        udp.endPacket();
       }
     }
   }
@@ -152,7 +210,8 @@ void loop() {
 //  Serial.printf("Millis since last pass: %d\n", curMillis - lastMillis);
 //  lastMillis = curMillis;
   if (first_pass) {
-    curRgb->reset_next_action();
+    if (curRgb)
+      curRgb->reset_next_action();
     first_pass = false;
   }
   if (curBlindy->is_time_to_act()) {
@@ -160,9 +219,8 @@ void loop() {
 //    Serial.print("Setting level to: "); Serial.println(newLevel);
     setLedLevel(newLevel);
   }
-  if (curRgb->is_time_to_act()) {
+  if (curRgb && curRgb->is_time_to_act()) {
     curRgb->new_brightness();
-    BlindyRGB::write_rgbs();
   }
   delayMicroseconds(450);
 }

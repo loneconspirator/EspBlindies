@@ -12,23 +12,24 @@ public:
   static BlindyRGB *new_command(char * args, BlindyRGB *previous);
   static BlindyRGB *new_mode_from_scratch(char * args, unsigned char cur_level);
   
-  BlindyRGB * next_command(char * args);
+  virtual BlindyRGB * next_command(char * args);
   
   static uint16_t * leds; // TODO get rid of this
   static Adafruit_NeoPixel * strip;
-  static void write_rgbs(); //TODO get rid of this
   static void clear_values(); //TODO get rid of this
 
 protected:
   int rand_lim(int limit);
   static int _num_leds;
+  static void write_rgbs(); //TODO get rid of this
 };
 
 class BlindyRgbSolid: public BlindyRGB {
 public:
   static const char code = 'D';
-  BlindyRgbSolid();
+  BlindyRgbSolid(unsigned char brightness);//, unsigned char saturation);
   unsigned char new_brightness();
+  BlindyRGB *next_command(char * args);
 };
 
 class BlindySparkle: public BlindyRGB {
@@ -38,8 +39,8 @@ public:
   unsigned char new_brightness();
   BlindyRGB *next_command(char * args);
 private:
-  int _duration = 20;
-  int _off_duration;
+  int _cur_sparkle = 0;
+  int _duration = 50;
 };
 
 class BlindyCylon: public BlindyRGB {

@@ -80,8 +80,7 @@ BlindyRGB *BlindyRGB::new_mode_from_scratch(char * args, unsigned char cur_level
   if (_num_leds > 0){
     switch (args[0]) {
     case BlindyRgbSolid::code:
-      new_mode = new BlindyRgbSolid();
-      // Serial.print("2.1) new_mode: "); Serial.println((int) new_mode); Serial.flush();
+      new_mode = new BlindyRgbSolid(args[1]);//, args[2]);
       break;
     case BlindySparkle::code:
       new_mode = new BlindySparkle();
@@ -91,15 +90,14 @@ BlindyRGB *BlindyRGB::new_mode_from_scratch(char * args, unsigned char cur_level
       new_mode = new BlindyCylon();
       // Serial.print("2.2) new_mode: "); Serial.println((int) new_mode); Serial.flush();
       break;
+    case all_black_code:
+      new_mode = new BlindyRgbSolid(0);
+      break;
     // default:
       // Serial.print("2.3) Ruh Roh! "); Serial.println((int) new_mode); Serial.flush();
     }
   }
   return new_mode;
-}
-
-BlindyRGB *BlindyRGB::next_command(char * args){
-    return NULL;
 }
 
 int BlindyRGB::rand_lim(int limit){
@@ -114,14 +112,24 @@ int BlindyRGB::rand_lim(int limit){
   return retval;
 }
 
-BlindyRgbSolid::BlindyRgbSolid() {
+BlindyRgbSolid::BlindyRgbSolid(unsigned char brightness){//, unsigned char saturation) {
+  // large strips take too much power to make white 
+//  unsigned char non_blue = (unsigned char)(((int) saturation * (int) brightness) / 255);
+  unsigned char _brightness = brightness / 2; // Also for power
+//  Serial.print("non_blue: "); Serial.print((int) non_blue); Serial.print(", blue: "); Serial.print((int) brightness); Serial.println(); Serial.flush();
+  for(int i=0; i<_num_leds; i++)
+    strip->setPixelColor(i, 0, 0, _brightness);
+//  strip->setPixelColor(i, non_blue, non_blue, _brightness);
+  strip->show();
   _next_action = millis();
 }
 
 unsigned char BlindyRgbSolid::new_brightness(){
-  clear_values();
   _next_action = millis() + _do_nothing_duration;
   return 0;
+}
+BlindyRGB *BlindyRgbSolid::next_command(char * args){
+    return NULL;
 }
 
 BlindySparkle::BlindySparkle() {
@@ -130,8 +138,10 @@ BlindySparkle::BlindySparkle() {
 }
 
 unsigned char BlindySparkle::new_brightness() {
-  clear_values();
-  leds[rand_lim(_num_leds)] = pulse[rand_lim(NUM_PULSES)];
+  strip->setPixelColor(_cur_sparkle, 0,0,0);
+  _cur_sparkle = rand_lim(_num_leds);
+  strip->setPixelColor(_cur_sparkle, pulse[rand_lim(NUM_PULSES)]);
+  strip->show();
   _next_action += _duration;
   return 0;
 }
@@ -179,6 +189,7 @@ unsigned char BlindyCylon::new_brightness() {
     }
   }
   _next_action += _wait;
+  write_rgbs();
   return 0;
 }
 BlindyRGB *BlindyCylon::next_command(char * args){

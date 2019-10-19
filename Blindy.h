@@ -19,6 +19,7 @@ public:
 //  static const char solo_on_code = '(';
 //  static const char solo_off_code = ')';
   static const char roll_call_code = '.';
+  static const char all_black_code = ' ';
   static constexpr char *version = "0.8.0";
   
 //  static int pwm_map[256];
@@ -33,7 +34,7 @@ public:
   // new_brightness is called when we've made it to the time to do the next action. This increments the state, returning the next brightness to display (it is called by the driver)
   virtual unsigned char new_brightness();
   // next_command gives the blindy object an opportunity to set up the next blindy object or adjust it's own state and return itself. This is called from new_command
-  Blindy *next_command(char * args);
+  virtual Blindy *next_command(char * args);
 
   bool is_time_to_act();
   void reset_next_action();

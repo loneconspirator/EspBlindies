@@ -60,6 +60,9 @@ Blindy *Blindy::new_mode_from_scratch(char * args, unsigned char cur_level) {
     case BlindyPulseRandom::code:
     newMode = new BlindyPulseRandom(cur_level, (unsigned char)args[1], (unsigned char)args[2], (unsigned char)args[3]);
     break;
+    case all_black_code:
+    newMode = new BlindySet(0);
+    break;
     // case BlindySoundSensitive::code:
     // if (_mic_pin >= 0)
     //   newMode = new BlindySoundSensitive((unsigned char)args[1], (unsigned char)args[2], _mic_pin);
@@ -88,9 +91,6 @@ int Blindy::cur_level() {
 }
 int Blindy::duration_from_speed(unsigned char speed){
   return (270 - speed) * (270 - speed) / 8;
-}
-Blindy *Blindy::next_command(char * args){
-  return NULL;
 }
 
 
@@ -187,6 +187,9 @@ unsigned char BlindySet::new_brightness() {
   _next_action += _do_nothing_duration;
   return (unsigned char) _cur_level;
 }
+Blindy *BlindySet::next_command(char * args){
+  return NULL;
+}
 
 BlindyFadeVariable::BlindyFadeVariable(unsigned char cur_level, unsigned char target, unsigned char speed) {
   calculate_increment_values_for_variable_fade(cur_level, target, speed);
@@ -201,6 +204,10 @@ unsigned char BlindyFadeVariable::new_brightness() {
   return (unsigned char) _cur_level;
 }
 
+Blindy *BlindyFadeVariable::next_command(char * args){
+  return NULL;
+}
+
 BlindyFadeFixed::BlindyFadeFixed(unsigned char cur_level, unsigned char target, unsigned char speed) {
   calculate_increment_values_for_fixed_fade(cur_level, target, speed);
   _next_action = millis();
@@ -212,6 +219,10 @@ unsigned char BlindyFadeFixed::new_brightness() {
   }
   return (unsigned char) _cur_level;
 }
+Blindy *BlindyFadeFixed::next_command(char * args){
+  return NULL;
+}
+
 
 BlindyOnePulse::BlindyOnePulse(unsigned char cur_level, unsigned char brightness, unsigned char attack, unsigned char decay) {
   _going_up = true;
@@ -231,6 +242,10 @@ unsigned char BlindyOnePulse::new_brightness() {
   }
   return (unsigned char) _cur_level;
 }
+Blindy *BlindyOnePulse::next_command(char * args){
+  return NULL;
+}
+
 
 BlindyBlinkSteady::BlindyBlinkSteady(unsigned char brightness, unsigned char speed, unsigned char duty) {
   _brightness = brightness;
